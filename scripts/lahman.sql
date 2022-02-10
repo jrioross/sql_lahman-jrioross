@@ -213,7 +213,33 @@ and the American League (AL)? Give their full name and the teams that they were 
 when they won the award.
 */
 
-
+WITH TSN_ALNL AS (
+	(SELECT playerid
+	FROM awardsmanagers
+	WHERE awardid LIKE 'TSN%'
+		AND lgid = 'AL')
+	INTERSECT
+	(SELECT playerid
+	FROM awardsmanagers
+	WHERE awardid LIKE 'TSN%'
+		AND lgid = 'NL')
+	)
+SELECT 
+	namefirst, 
+	namelast,
+	yearid,
+	awardid,
+	awardsmanagers.lgid,
+	teamid
+FROM awardsmanagers
+INNER JOIN TSN_ALNL
+	USING (playerid)
+INNER JOIN people
+	USING (playerid)
+INNER JOIN managers
+	USING (playerid, yearid)
+WHERE awardid LIKE 'TSN%'
+ORDER BY namelast, yearid
 
 ----------------------------------------------------------------------------------------7
 
@@ -224,7 +250,21 @@ Note that pitchers often play for more than one team in a season,
 so be sure that you are counting all stats for each player.
 */
 
+SELECT
+	namefirst,
+	namelast,
+	(MAX(salary)/SUM(so))::numeric::money AS salary_per_so
+FROM pitching
+INNER JOIN people
+	USING (playerid)
+INNER JOIN salaries
+	USING (playerid, yearid)
+WHERE yearid = 2016
+GROUP BY playerid, namefirst, namelast
+HAVING sum(gs) >= 10
+ORDER BY salary_per_so DESC;
 
+-- Matt Cain made a whopping $289,351.85
 
 ----------------------------------------------------------------------------------------8
 
@@ -237,7 +277,24 @@ Note that a player being inducted into the hall of fame is indicated by a 'Y'
 in the inducted column of the halloffame table.
 */
 
-
+WITH hof AS (
+	SELECT *
+	FROM halloffame
+	WHERE inducted = 'Y'
+)
+SELECT
+	namefirst,
+	namelast,
+	SUM(h),
+	hof.yearid
+FROM batting
+INNER JOIN people
+	USING (playerid)
+LEFT JOIN hof
+	USING (playerid)
+GROUP BY playerid, namefirst, namelast, hof.yearid
+HAVING sum(h) >= 3000
+ORDER BY hof.yearid;
 
 ----------------------------------------------------------------------------------------9
 
@@ -246,7 +303,25 @@ in the inducted column of the halloffame table.
 Report those players' full names.
 */
 
-
+WITH khits AS (
+	SELECT
+		playerid,
+		teamid,
+		SUM(h)
+	FROM batting
+	GROUP BY playerid, teamid
+	HAVING SUM(h) >= 1000
+	ORDER BY playerid
+	)
+SELECT
+	namefirst,
+	namelast
+FROM khits
+INNER JOIN people
+	USING (playerid)
+GROUP BY playerid, namefirst, namelast
+HAVING COUNT(DISTINCT teamid) = 2
+ORDER BY namelast;
 
 ----------------------------------------------------------------------------------------10
 
@@ -257,5 +332,32 @@ and who hit at least one home run in 2016.
 Report the players' first and last names and the number of home runs they hit in 2016.
 */
 
-
-
+WITH hr AS (
+	SELECT
+		playerid,
+		yearid,
+		SUM(batting.hr) AS season_hr,
+		RANK() OVER(PARTITION BY playerid ORDER BY playerid, yearid) AS year_in_league
+	FROM batting
+	GROUP BY playerid, yearid
+	),
+max_hr AS (
+	SELECT
+		playerid,
+		MAX(season_hr) AS max_season_hr
+	FROM hr
+	GROUP BY playerid
+)
+SELECT
+	namefirst,
+	namelast,
+	season_hr AS hr_2016
+FROM hr
+INNER JOIN people
+	USING (playerid)
+INNER JOIN max_hr
+	ON (hr.playerid = max_hr.playerid) AND (hr.season_hr = max_hr.max_season_hr)
+WHERE yearid = 2016 
+	AND year_in_league >= 10
+	AND season_hr > 0
+ORDER BY hr_2016 DESC;
