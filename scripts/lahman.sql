@@ -332,6 +332,8 @@ and who hit at least one home run in 2016.
 Report the players' first and last names and the number of home runs they hit in 2016.
 */
 
+-- First pass, 1.6 s
+
 WITH hr AS (
 	SELECT
 		playerid,
@@ -360,4 +362,31 @@ INNER JOIN max_hr
 WHERE yearid = 2016 
 	AND year_in_league >= 10
 	AND season_hr > 0
+ORDER BY hr_2016 DESC;
+
+-- cleaner but slower, 2.1 s
+
+WITH hr2016 AS (
+	SELECT
+		playerid,
+		namefirst,
+		namelast,
+		yearid,
+		SUM(batting.hr) AS season_hr,
+		RANK() OVER(PARTITION BY playerid ORDER BY playerid, yearid) AS year_in_league,
+		MAX(SUM(batting.hr)) OVER(PARTITION BY playerid) AS max_season_hr
+	FROM batting
+	INNER JOIN people
+		USING (playerid)
+	GROUP BY playerid, namefirst, namelast, yearid 
+	)
+SELECT
+	namefirst,
+	namelast,
+	season_hr AS hr_2016
+FROM hr2016
+WHERE yearid = 2016 
+	AND year_in_league >= 10
+	AND season_hr > 0
+	AND season_hr = max_season_hr
 ORDER BY hr_2016 DESC;
