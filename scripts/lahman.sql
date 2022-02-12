@@ -881,11 +881,89 @@ How many players started in an All Star Game with Willie Mays?
 table with a non-null startingpos value).
 */
 
-SELECT *
-FROM allstarfull AS as1
-LEFT JOIN allstarfull AS as2
+WITH as_named AS (
+	SELECT 
+		playerid,
+		namefirst,
+		namelast,
+		yearid,
+		gameid,
+		startingpos
+	FROM allstarfull
+	INNER JOIN people
+		USING (playerid)
+)
+SELECT COUNT(DISTINCT as2.playerid)
+FROM as_named AS as1
+LEFT JOIN as_named AS as2
 	USING (gameid)
-WHERE as1.playerid <> as2.playerid;
+WHERE as1.playerid <> as2.playerid
+	AND as1.startingpos IS NOT NULL
+	AND as2.startingpos IS NOT NULL
+	AND as1.namefirst || ' ' || as1.namelast = 'Willie Mays';
+
+-- 125 distinct players started in a game with Willie Mays
+
+-- Using RECURSIVE
+
+WITH RECURSIVE as_named AS (
+	SELECT 
+		playerid,
+		namefirst,
+		namelast,
+		yearid,
+		gamenum,
+		gameid,
+		startingpos
+	FROM allstarfull
+	INNER JOIN people
+		USING (playerid)
+),
+as_pairs AS (
+	SELECT
+		as1.playerid AS target_id,
+		as1.namefirst || ' ' || as1.namelast AS target_player,
+		as1.startingpos,
+		gameid,
+		yearid,
+		gamenum,
+		as2.playerid AS other_id,
+		as2.namefirst || ' ' || as2.namelast AS other_player,
+		as2.startingpos
+	FROM as_named AS as1
+	LEFT JOIN as_named AS as2
+		USING (gameid, yearid, gamenum)
+	WHERE as1.playerid <> as2.playerid
+		AND as1.startingpos IS NOT NULL
+		AND as2.startingpos IS NOT NULL
+),
+tree AS (
+	SELECT
+		i.target_player,
+		i.target_id,
+		i.other_player,
+		i.other_id,
+		0 AS link_count,
+		i.other_player || '--(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player AS route
+	FROM as_pairs AS i
+	WHERE i.target_player = 'Willie Mays'
+	UNION ALL
+	SELECT
+		t.target_player,
+		t.target_id,
+		i.other_player,
+		i.other_id,
+		t.link_count + 1,
+		i.other_player || ' --(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player || chr(10) || t.route AS route
+	FROM as_pairs AS i
+	INNER JOIN tree AS t
+		ON i.target_id = t.other_id
+	AND t.link_count < 0
+)
+SELECT COUNT(DISTINCT other_player)
+FROM tree;
+
+-- 125 distinct players started in a game with Willie Mays
 
 /*
 b. How many players didn't start in an All Star Game with Willie Mays but started an All Star Game 
@@ -894,7 +972,76 @@ For example, Graig Nettles never started an All Star Game with Willie Mayes, but
 1975 All Star Game with Blue Vida who started the 1971 All Star Game with Willie Mays.
 */
 
+WITH RECURSIVE as_named AS (
+	SELECT 
+		playerid,
+		namefirst,
+		namelast,
+		yearid,
+		gamenum,
+		gameid,
+		startingpos
+	FROM allstarfull
+	INNER JOIN people
+		USING (playerid)
+),
+as_pairs AS (
+	SELECT
+		as1.playerid AS target_id,
+		as1.namefirst || ' ' || as1.namelast AS target_player,
+		as1.startingpos,
+		gameid,
+		yearid,
+		gamenum,
+		as2.playerid AS other_id,
+		as2.namefirst || ' ' || as2.namelast AS other_player,
+		as2.startingpos
+	FROM as_named AS as1
+	LEFT JOIN as_named AS as2
+		USING (gameid, yearid, gamenum)
+	WHERE as1.playerid <> as2.playerid
+		AND as1.startingpos IS NOT NULL
+		AND as2.startingpos IS NOT NULL
+),
+tree AS (
+	SELECT
+		i.target_player,
+		i.target_id,
+		i.other_player,
+		i.other_id,
+		0 AS link_count,
+		i.other_player || '--(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player AS route
+	FROM as_pairs AS i
+	WHERE i.target_player = 'Willie Mays'
+	UNION ALL
+	SELECT
+		t.target_player,
+		t.target_id,
+		i.other_player,
+		i.other_id,
+		t.link_count + 1,
+		i.other_player || ' --(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player || chr(10) || t.route AS route
+	FROM as_pairs AS i
+	INNER JOIN tree AS t
+		ON i.target_id = t.other_id
+	AND t.link_count < 1
+)
+SELECT COUNT(DISTINCT other_player)
+FROM tree
+WHERE other_player IN (
+	SELECT other_player
+	FROM tree
+	WHERE link_count = 1
+	EXCEPT
+	SELECT other_player
+	FROM tree
+	WHERE link_count = 0
+	);
 
+/*
+218 distinct players who started with a player who started with Willie Mays,
+but who did not start with Willie Mays
+*/
 
 /*
 c. We'll call two players connected if they both started in the same All Star Game. Using this, we can 
@@ -903,8 +1050,146 @@ Carlton Fisk started in the 1973 All Star Game with Rod Carew who started in the
 with Willie Mays. Find a chain of All Star starters connecting Babe Ruth to Willie Mays. 
 */
 
+WITH RECURSIVE as_named AS (
+	SELECT 
+		playerid,
+		namefirst,
+		namelast,
+		yearid,
+		gamenum,
+		gameid,
+		startingpos
+	FROM allstarfull
+	INNER JOIN people
+		USING (playerid)
+),
+as_pairs AS (
+	SELECT
+		as1.playerid AS target_id,
+		as1.namefirst || ' ' || as1.namelast AS target_player,
+		as1.startingpos,
+		gameid,
+		yearid,
+		gamenum,
+		as2.playerid AS other_id,
+		as2.namefirst || ' ' || as2.namelast AS other_player,
+		as2.startingpos
+	FROM as_named AS as1
+	LEFT JOIN as_named AS as2
+		USING (gameid, yearid, gamenum)
+	WHERE as1.playerid <> as2.playerid
+		AND as1.startingpos IS NOT NULL
+		AND as2.startingpos IS NOT NULL
+),
+tree AS (
+	SELECT
+		i.target_player,
+		i.target_id,
+		i.other_player,
+		i.other_id,
+		0 AS link_count,
+		i.other_player || '--(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player AS route
+	FROM as_pairs AS i
+	WHERE i.target_player = 'Willie Mays'
+	UNION ALL
+	SELECT
+		t.target_player,
+		t.target_id,
+		i.other_player,
+		i.other_id,
+		t.link_count + 1,
+		i.other_player || ' --(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player || chr(10) || t.route AS route
+	FROM as_pairs AS i
+	INNER JOIN tree AS t
+		ON i.target_id = t.other_id
+	AND t.link_count < 2
+)
+SELECT
+	target_player,
+	other_player,
+	link_count,
+	route
+FROM tree
+WHERE other_player = 'Babe Ruth'
+LIMIT 1;
 
+/* (You have to double-click or hover over the route to see the full output.)
+Babe Ruth --(1933 - Game: #0)--> Joe Cronin
+Joe Cronin --(1941 - Game: #0)--> Ted Williams
+Ted Williams--(1957 - Game: #0)--> Willie Mays
+*/
 
 /*
 d. How large a chain do you need to connect Derek Jeter to Willie Mays?
+*/
+
+WITH RECURSIVE as_named AS (
+	SELECT 
+		playerid,
+		namefirst,
+		namelast,
+		yearid,
+		gamenum,
+		gameid,
+		startingpos
+	FROM allstarfull
+	INNER JOIN people
+		USING (playerid)
+),
+as_pairs AS (
+	SELECT
+		as1.playerid AS target_id,
+		as1.namefirst || ' ' || as1.namelast AS target_player,
+		as1.startingpos,
+		gameid,
+		yearid,
+		gamenum,
+		as2.playerid AS other_id,
+		as2.namefirst || ' ' || as2.namelast AS other_player,
+		as2.startingpos
+	FROM as_named AS as1
+	LEFT JOIN as_named AS as2
+		USING (gameid, yearid, gamenum)
+	WHERE as1.playerid <> as2.playerid
+		AND as1.startingpos IS NOT NULL
+		AND as2.startingpos IS NOT NULL
+),
+tree AS (
+	SELECT
+		i.target_player,
+		i.target_id,
+		i.other_player,
+		i.other_id,
+		0 AS link_count,
+		i.other_player || '--(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player AS route
+	FROM as_pairs AS i
+	WHERE i.target_player = 'Derek Jeter'
+	UNION ALL
+	SELECT
+		t.target_player,
+		t.target_id,
+		i.other_player,
+		i.other_id,
+		t.link_count + 1,
+		i.other_player || ' --(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player || chr(10) || t.route AS route
+	FROM as_pairs AS i
+	INNER JOIN tree AS t
+		ON i.target_id = t.other_id
+	AND t.link_count < 3
+)
+SELECT
+	target_player,
+	other_player,
+	link_count,
+	route
+FROM tree
+WHERE other_player = 'Willie Mays'
+LIMIT 1;
+
+/*
+3 links:
+Willie Mays --(1971 - Game: #0)--> Rod Carew
+Rod Carew --(1984 - Game: #0)--> Tony Gwynn
+Tony Gwynn --(1997 - Game: #0)--> Alex Rodriguez
+Alex Rodriguez--(2008 - Game: #0)--> Derek Jeter
 */
