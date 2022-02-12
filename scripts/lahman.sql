@@ -86,14 +86,15 @@ Report the players' names, number of stolen bases, number of attempts, and stole
 SELECT
 	namefirst,
 	namelast,
-	sb,
-	(sb + cs) AS sb_attempts,
-	ROUND(sb*100.0/(sb+cs), 2) AS sb_perc
+	SUM(sb),
+	SUM(sb + cs) AS sb_attempts,
+	ROUND(SUM(sb)*100.0/SUM(sb+cs), 2) AS sb_perc
 FROM people
 INNER JOIN batting
 	USING(playerid)
 WHERE yearid = 2016
-	AND sb + cs >= 20
+GROUP BY playerid, namefirst, namelast
+HAVING SUM(sb + cs) >= 20
 ORDER BY sb_perc DESC;
 	
 -- Chris Owings had the highest sb percentage with 91.30%
