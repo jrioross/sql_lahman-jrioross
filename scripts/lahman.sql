@@ -944,7 +944,7 @@ tree AS (
 		i.other_player,
 		i.other_id,
 		0 AS link_count,
-		i.other_player || '--(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player AS route
+		i.other_player || ' --(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player AS route
 	FROM as_pairs AS i
 	WHERE i.target_player = 'Willie Mays'
 	UNION ALL
@@ -1010,7 +1010,7 @@ tree AS (
 		i.other_player,
 		i.other_id,
 		0 AS link_count,
-		i.other_player || '--(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player AS route
+		i.other_player || ' --(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player AS route
 	FROM as_pairs AS i
 	WHERE i.target_player = 'Willie Mays'
 	UNION ALL
@@ -1088,7 +1088,7 @@ tree AS (
 		i.other_player,
 		i.other_id,
 		0 AS link_count,
-		i.other_player || '--(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player AS route
+		i.other_player || ' --(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player AS route
 	FROM as_pairs AS i
 	WHERE i.target_player = 'Willie Mays'
 	UNION ALL
@@ -1161,7 +1161,7 @@ tree AS (
 		i.other_player,
 		i.other_id,
 		0 AS link_count,
-		i.other_player || '--(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player AS route
+		i.other_player || ' --(' || yearid || ' - Game: #' || gamenum || ')--> ' || i.target_player AS route
 	FROM as_pairs AS i
 	WHERE i.target_player = 'Derek Jeter'
 	UNION ALL
