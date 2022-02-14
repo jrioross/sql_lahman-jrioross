@@ -1499,7 +1499,7 @@ What is the longest steak of a team winning the World Series?
 Write a query that produces this result rather than scanning the output 
 of your previous answer.
 */
-
+	
 -- correlated experiment
 
 WITH streaks AS (
@@ -1529,8 +1529,40 @@ A team made the playoffs in a year if either divwin, wcwin, or lgwin will
 are equal to 'Y'. Which team has the longest streak of making the playoffs? 
 */
 
+WITH streaks AS (
+	SELECT
+		yearid,
+		teamid,
+		name,
+		divwin,
+		wcwin,
+		lgwin,
+		CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END AS playoffs,
+		CASE WHEN
+			CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END = 'Y'
+					AND LAG(CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END) OVER(ORDER BY teamid, yearid) = 'Y'
+				 		THEN 0
+				 ELSE 1 END AS streaking
+	FROM teams
+	ORDER BY teamid, yearid
+	),
+streak_ids AS (
+	SELECT
+		*,
+		SUM(streaking) OVER(PARTITION BY teamid 
+						 ORDER BY yearid 
+						 RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS streakid
+	FROM streaks
+	)
 SELECT
+	teamid,
+	name,
+	COUNT(streakid) AS streak_length
+FROM streak_ids
+GROUP BY teamid, name, streakid
+ORDER BY streak_length DESC
 	
+-- The Yankees made the playoffs for 13 consecutive years
 
 /*
 Question 5d: 
@@ -1538,6 +1570,44 @@ The 1994 season was shortened due to a strike.
 If we don't count a streak as being broken by this season, 
 does this change your answer for the previous part?
 */
+
+WITH streaks AS (
+	SELECT
+		yearid,
+		teamid,
+		name,
+		divwin,
+		wcwin,
+		lgwin,
+		CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END AS playoffs,
+		CASE WHEN
+			CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END = 'Y'
+					AND LAG(CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END) OVER(ORDER BY teamid, yearid) = 'Y'
+				 		THEN 0
+				 ELSE 1 END AS streaking
+	FROM teams
+	WHERE divwin IS NOT NULL
+		OR wcwin IS NOT NULL
+		OR lgwin IS NOT NULL
+	ORDER BY teamid, yearid
+	),
+streak_ids AS (
+	SELECT
+		*,
+		SUM(streaking) OVER(PARTITION BY teamid 
+						 ORDER BY yearid 
+						 RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS streakid
+	FROM streaks
+	)
+SELECT
+	teamid,
+	name,
+	COUNT(streakid) AS streak_length
+FROM streak_ids
+GROUP BY teamid, name, streakid
+ORDER BY streak_length DESC
+
+-- The result does change. Disregarding 1994, the Braves made the playoffs for 14 consecutive years.
 
 ---------------------------------------------------------------------------------------- Window 6
 
