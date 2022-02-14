@@ -1619,5 +1619,53 @@ and teams that had been in existence for at least 3 years prior to
 the manager's first full season.
 */
 
+WITH manteams AS (
+	SELECT
+		teamid,
+		name AS teamname,
+		teams.yearid AS year_started,
+		ROUND(100.0*
+			  (SUM(teams.w) OVER(PARTITION BY teamid 
+										  ORDER BY yearid
+										  ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING))
+			  /
+			  (SUM(teams.w+teams.l) OVER(PARTITION BY teamid 
+										  ORDER BY yearid
+										  ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING)),1) AS team_prev_3_winpct,
+		ROW_NUMBER() OVER(PARTITION BY teamid ORDER BY yearid) AS team_season,
+		playerid,
+		namefirst || ' ' || namelast AS manager,
+		ROW_NUMBER() OVER(PARTITION BY playerid, teamid ORDER BY yearid) AS manager_season,
+		ROUND(100.0*
+			  (SUM(teams.w) OVER(PARTITION BY teamid 
+										  ORDER BY yearid
+										  ROWS BETWEEN 1 FOLLOWING AND 3 FOLLOWING))
+			  /
+			  (SUM(teams.w+teams.l) OVER(PARTITION BY teamid 
+										  ORDER BY yearid
+										  ROWS BETWEEN 1 FOLLOWING AND 3 FOLLOWING)),1) AS team_yr_2_thru_4_winpct
+	FROM teams
+	INNER JOIN managers
+		USING (teamid, yearid)
+	INNER JOIN people
+		USING (playerid)
+),
+manager_contributions AS (
+	SELECT *, MAX(manager_season) OVER(PARTITION BY playerid, teamid) AS yrs_team_manager
+	FROM manteams
+)
 SELECT
-	
+	manager,
+	teamid,
+	teamname,
+	year_started,
+	team_prev_3_winpct,
+	team_yr_2_thru_4_winpct,
+	team_yr_2_thru_4_winpct - team_prev_3_winpct AS percent_change
+FROM manager_contributions
+WHERE manager_season = 1
+	AND team_season >= 4
+	AND yrs_team_manager >= 4
+ORDER BY percent_change DESC
+
+-- bunch of old-timers here
