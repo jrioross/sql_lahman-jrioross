@@ -643,6 +643,7 @@ LEFT JOIN hof_pitchers
 USING (playerid)
 --Percent of lefty pitchers who enter HOF: 11.18%, Righties: 14.02%
 
+----------------------------------/* DS5 Bonus */---------------------------------------
 ---------------------------------------------------------------------------------------- Bonus 1
 
 /*
@@ -1194,3 +1195,363 @@ Rod Carew --(1984 - Game: #0)--> Tony Gwynn
 Tony Gwynn --(1997 - Game: #0)--> Alex Rodriguez
 Alex Rodriguez--(2008 - Game: #0)--> Derek Jeter
 */
+
+----------------------------/* DS5 Window Functions Bonus */---------------------------------
+
+
+---------------------------------------------------------------------------------------- Window 1
+/*
+Question 1a: Warmup Question
+Write a query which retrieves each teamid and number of wins (w) for the 2016 season.
+Apply three window functions to the number of wins (ordered in descending order)
+- ROW_NUMBER, RANK, AND DENSE_RANK. 
+Compare the output from these three functions. 
+What do you notice?
+*/
+
+SELECT
+	teamid,
+	w,
+	ROW_NUMBER() OVER(ORDER BY w DESC),
+	RANK() OVER(ORDER BY w DESC),
+	DENSE_RANK() OVER(ORDER BY w DESC)
+FROM teams
+WHERE yearid = 2016;
+
+/*
+row number has no duplicate values; it just increments by 1
+rank duplicates ties but keeps track of rows underneath, e.g., Cleveland is 4th after the ties 2nds
+dense rank always increments by 1 after ties
+*/
+
+/*
+Question 1b: 
+Which team has finished in last place in its division 
+(i.e. with the least number of wins) the most number of times? 
+A team's division is indicated by the divid column in the teams table.
+*/
+
+WITH rev_div_ranks AS (
+	SELECT
+		name,
+		yearid,
+		lgid,
+		divid,
+		RANK() OVER(PARTITION BY yearid, lgid, divid ORDER BY w) AS rev_div_rank
+	FROM teams
+	WHERE divid IS NOT NULL
+	)
+SELECT name, COUNT(name) AS last_finishes
+FROM rev_div_ranks
+WHERE rev_div_rank = 1
+GROUP BY name
+ORDER BY last_finishes DESC;
+
+-- San Diego Padres with 18 last-place finishes
+
+---------------------------------------------------------------------------------------- Window 2
+
+/*
+Question 2a: 
+Barry Bonds has the record for the highest career home runs, with 762. 
+Write a query which returns, for each season of Bonds' career 
+the total number of seasons he had played 
+and his total career home runs at the end of that season. 
+(Barry Bonds' playerid is bondsba01.)
+*/
+
+SELECT
+	playerid,
+	yearid,
+	SUM(hr), 
+	ROW_NUMBER() OVER(PARTITION BY playerid ORDER BY yearid) AS seasons_played,
+	SUM(SUM(hr)) OVER(PARTITION BY playerid ORDER BY yearid RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) career_hr
+FROM batting
+WHERE playerid = 'bondsba01'
+GROUP BY playerid, yearid;
+
+/*
+Question 2b:
+How many players at the end of the 2016 season were on pace to beat Barry Bonds' 
+record? For this question, we will consider a player to be on pace to beat Bonds' 
+record if they have more home runs than Barry Bonds had the same number of seasons
+into his career. 
+*/
+
+WITH barry_hr AS (
+	SELECT
+		playerid,
+		yearid,
+		SUM(hr) AS season_hr, 
+		ROW_NUMBER() OVER(PARTITION BY playerid ORDER BY yearid) AS seasons_played,
+		SUM(SUM(hr)) OVER(PARTITION BY playerid ORDER BY yearid RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) career_hr
+	FROM batting
+	WHERE playerid = 'bondsba01'
+	GROUP BY playerid, yearid
+),
+all_hr AS (
+		SELECT
+		playerid,
+		yearid,
+		SUM(hr) AS season_hr, 
+		ROW_NUMBER() OVER(PARTITION BY playerid ORDER BY yearid) AS seasons_played,
+		SUM(SUM(hr)) OVER(PARTITION BY playerid ORDER BY yearid RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) career_hr
+	FROM batting
+	WHERE playerid <> 'bondsba01'
+	GROUP BY playerid, yearid
+)
+SELECT COUNT(*)
+FROM all_hr AS a
+INNER JOIN barry_hr AS b
+	USING(seasons_played)
+WHERE a.career_hr > b.career_hr
+	AND a.yearid = 2016;
+
+-- In 2016, 20 players were on pace to break Bonds's record.
+
+/*
+Question 2c: 
+Were there any players who 20 years into their career who had hit more home runs
+at that point into their career than Barry Bonds had hit 20 years into his career? 
+*/
+
+WITH barry_hr AS (
+	SELECT
+		playerid,
+		yearid,
+		SUM(hr) AS season_hr, 
+		ROW_NUMBER() OVER(PARTITION BY playerid ORDER BY yearid) AS seasons_played,
+		SUM(SUM(hr)) OVER(PARTITION BY playerid ORDER BY yearid RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) career_hr
+	FROM batting
+	WHERE playerid = 'bondsba01'
+	GROUP BY playerid, yearid
+),
+all_hr AS (
+		SELECT
+		playerid,
+		yearid,
+		SUM(hr) AS season_hr, 
+		ROW_NUMBER() OVER(PARTITION BY playerid ORDER BY yearid) AS seasons_played,
+		SUM(SUM(hr)) OVER(PARTITION BY playerid ORDER BY yearid RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) career_hr
+	FROM batting
+	WHERE playerid <> 'bondsba01'
+	GROUP BY playerid, yearid
+)
+SELECT *
+FROM all_hr AS a
+INNER JOIN barry_hr AS b
+	USING(seasons_played)
+WHERE a.career_hr > b.career_hr
+	AND seasons_played = 20;
+	
+-- Only the great Hank Aaron: 713 vs 708
+
+---------------------------------------------------------------------------------------- Window 3
+
+/*
+Question 3
+Anomalous Seasons
+Find the player who had the most anomalous season in terms of number of home runs hit. 
+To do this, find the player who has the largest gap between the number of home runs hit 
+in a season and the 5-year moving average number of home runs if we consider 
+the 5-year window centered at that year (the window should include that year, 
+the two years prior and the two years after).
+*/
+
+WITH rolling_hr_avgs AS (
+	SELECT
+		playerid,
+		namefirst,
+		namelast,
+		yearid,
+		SUM(hr) AS season_hr,
+		AVG(SUM(hr)) OVER(PARTITION BY playerid
+					 ORDER BY yearid
+					 RANGE BETWEEN 2 PRECEDING AND 2 FOLLOWING) AS rolling_hr_avg,
+		SUM(hr) - AVG(SUM(hr)) OVER(PARTITION BY playerid
+					 ORDER BY yearid
+					 RANGE BETWEEN 2 PRECEDING AND 2 FOLLOWING) AS dif_from_avg
+	FROM batting
+	INNER JOIN people
+		USING (playerid)
+	GROUP BY playerid, namefirst, namelast, yearid
+	)
+SELECT *
+FROM rolling_hr_avgs
+WHERE dif_from_avg = (SELECT MAX(dif_from_avg) FROM rolling_hr_avgs);
+
+-- In 1996, Brady Anderson hit 50 hrs, which was 27.2 above his rolling avg.
+-- Note the result is different if we take the absolute value of the difference.
+
+---------------------------------------------------------------------------------------- Window 4
+
+/*
+Question 4: Players Playing for one Team
+For this question, we'll just consider players that appear in the batting table.
+
+Question 4a: 
+Warmup: How many players played at least 10 years in the league 
+and played for exactly one team? 
+(For this question, exclude any players who played in the 2016 season). 
+Who had the longest career with a single team? 
+(You can probably answer this question without needing to use a window function.)
+*/
+
+WITH ten_for_1 AS (
+	SELECT
+		playerid,
+		COUNT(DISTINCT yearid) AS years_played,
+		COUNT(DISTINCT teamid) AS num_teams
+	FROM batting
+	WHERE playerid NOT IN
+		(SELECT playerid
+		 FROM batting
+		 WHERE yearid = 2016)
+	GROUP BY playerid
+	HAVING COUNT(DISTINCT yearid) >= 10
+		AND COUNT(DISTINCT teamid) = 1
+	)
+SELECT COUNT(*)
+FROM ten_for_1
+	
+-- 156 players
+
+/*
+Question 4b: 
+Some players start and end their careers with the same team but play for other teams
+in between. For example, Barry Zito started his career with the Oakland Athletics, 
+moved to the San Francisco Giants for 7 seasons before returning to the 
+Oakland Athletics for his final season. How many players played at least 10 years 
+in the league and start and end their careers with the same team 
+but played for at least one other team during their career? 
+For this question, exclude any players who played in the 2016 season.
+*/
+
+WITH rookie_final AS (
+	SELECT
+		playerid,
+		yearid,
+		teamid,
+		MIN(yearid) OVER(PARTITION BY playerid) AS rookie_year,
+		MAX(yearid) OVER(PARTITION BY playerid) AS final_year
+	FROM batting
+	WHERE playerid IN
+		(SELECT playerid
+		 FROM batting
+		 GROUP BY playerid
+		 HAVING COUNT(DISTINCT yearid) >= 10
+		 AND COUNT(DISTINCT teamid) > 1)
+	),
+rookie_years AS (
+	SELECT *
+	FROM rookie_final
+	WHERE yearid = rookie_year
+),
+final_years AS (
+	SELECT *
+	FROM rookie_final
+	WHERE yearid = final_year
+)
+SELECT
+	namefirst,
+	namelast,
+	teamid,
+	r.rookie_year,
+	f.final_year
+FROM rookie_years AS r
+INNER JOIN final_years AS f
+	USING (playerid, teamid)
+INNER JOIN people
+	USING (playerid)
+WHERE playerid NOT IN
+	(SELECT playerid
+	 FROM batting
+	 WHERE yearid = 2016);
+
+-- 233 players
+
+---------------------------------------------------------------------------------------- Window 5
+
+/*
+Question 5: Streaks
+
+Question 5a: 
+How many times did a team win the World Series in consecutive years?
+*/
+
+WITH ws AS(
+	SELECT
+		yearid,
+		teamid AS ws_winner,
+		lag(teamid) OVER(ORDER BY yearid) AS previous_ws_winner
+	FROM teams
+	WHERE wswin = 'Y'
+	)
+SELECT COUNT(*)
+FROM ws
+WHERE ws_winner = previous_ws_winner
+
+-- 22 times
+
+/*
+Question 5b: 
+What is the longest steak of a team winning the World Series? 
+Write a query that produces this result rather than scanning the output 
+of your previous answer.
+*/
+
+-- correlated experiment
+
+WITH streaks AS (
+	SELECT
+		yearid,
+		teamid,
+		name,
+		CASE WHEN teamid = LAG(teamid) OVER(ORDER BY yearid)
+				THEN (SELECT MAX(yearid) + 1
+					 FROM teams AS t
+					 WHERE t.yearid < teams.yearid
+					 AND t.teamid <> teams.teamid
+					 AND wswin = 'Y')
+				ELSE yearid END AS streak_start
+	FROM teams
+	WHERE wswin = 'Y'
+	)
+SELECT
+	*,
+	yearid - streak_start + 1 AS streak_length
+FROM streaks
+ORDER BY streak_length DESC
+
+/*
+Question 5c: 
+A team made the playoffs in a year if either divwin, wcwin, or lgwin will 
+are equal to 'Y'. Which team has the longest streak of making the playoffs? 
+*/
+
+SELECT
+	
+
+/*
+Question 5d: 
+The 1994 season was shortened due to a strike. 
+If we don't count a streak as being broken by this season, 
+does this change your answer for the previous part?
+*/
+
+---------------------------------------------------------------------------------------- Window 6
+
+/*
+Question 6: Manager Effectiveness
+Which manager had the most positive effect on a team's winning percentage? 
+To determine this, calculate the average winning percentage 
+in the three years before the manager's first full season 
+and compare it to the average winning percentage for that manager's
+2nd through 4th full season. 
+Consider only managers who managed at least 4 full years at the new team 
+and teams that had been in existence for at least 3 years prior to 
+the manager's first full season.
+*/
+
+SELECT
+	
