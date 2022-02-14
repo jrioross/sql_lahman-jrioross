@@ -1668,4 +1668,4 @@ WHERE manager_season = 1
 	AND yrs_team_manager >= 4
 ORDER BY percent_change DESC
 
--- bunch of old-timers here
+-- bunch of old-timers here. George Stallings has the biggest effect, improving the Boston Braves by 25.6%
