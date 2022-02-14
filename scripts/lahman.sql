@@ -1537,13 +1537,11 @@ WITH streaks AS (
 		divwin,
 		wcwin,
 		lgwin,
-		CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END AS playoffs,
-		CASE WHEN
-			CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END = 'Y'
-					AND LAG(CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END) OVER(ORDER BY teamid, yearid) = 'Y'
-				 		THEN 0
-				 ELSE 1 END AS streaking
-	FROM teams
+		playoffs,
+		CASE WHEN playoffs = 'Y' AND LAG(playoffs) OVER(ORDER BY teamid, yearid) = 'Y' THEN 0
+			 ELSE 1 END AS streaking
+	FROM teams,
+	LATERAL (SELECT CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END AS playoffs) AS playoffs
 	ORDER BY teamid, yearid
 	),
 streak_ids AS (
@@ -1579,13 +1577,11 @@ WITH streaks AS (
 		divwin,
 		wcwin,
 		lgwin,
-		CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END AS playoffs,
-		CASE WHEN
-			CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END = 'Y'
-					AND LAG(CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END) OVER(ORDER BY teamid, yearid) = 'Y'
-				 		THEN 0
-				 ELSE 1 END AS streaking
-	FROM teams
+		playoffs,
+		CASE WHEN playoffs = 'Y' AND LAG(playoffs) OVER(ORDER BY teamid, yearid) = 'Y' THEN 0
+			 ELSE 1 END AS streaking
+	FROM teams,
+	LATERAL (SELECT CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END AS playoffs) AS playoffs
 	WHERE divwin IS NOT NULL
 		OR wcwin IS NOT NULL
 		OR lgwin IS NOT NULL
