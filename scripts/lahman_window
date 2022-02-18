@@ -65,8 +65,11 @@ SELECT
 	playerid,
 	yearid,
 	SUM(hr), 
-	ROW_NUMBER() OVER(PARTITION BY playerid ORDER BY yearid) AS seasons_played,
-	SUM(SUM(hr)) OVER(PARTITION BY playerid ORDER BY yearid RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) career_hr
+	ROW_NUMBER() OVER(PARTITION BY playerid 
+					  ORDER BY yearid) AS seasons_played,
+	SUM(SUM(hr)) OVER(PARTITION BY playerid 
+					  ORDER BY yearid 
+					  RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS career_hr
 FROM batting
 WHERE playerid = 'bondsba01'
 GROUP BY playerid, yearid;
@@ -84,8 +87,11 @@ WITH barry_hr AS (
 		playerid,
 		yearid,
 		SUM(hr) AS season_hr, 
-		ROW_NUMBER() OVER(PARTITION BY playerid ORDER BY yearid) AS seasons_played,
-		SUM(SUM(hr)) OVER(PARTITION BY playerid ORDER BY yearid RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) career_hr
+		ROW_NUMBER() OVER(PARTITION BY playerid 
+						  ORDER BY yearid) AS seasons_played,
+		SUM(SUM(hr)) OVER(PARTITION BY playerid 
+						  ORDER BY yearid 
+						  RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS career_hr
 	FROM batting
 	WHERE playerid = 'bondsba01'
 	GROUP BY playerid, yearid
@@ -95,8 +101,11 @@ all_hr AS (
 		playerid,
 		yearid,
 		SUM(hr) AS season_hr, 
-		ROW_NUMBER() OVER(PARTITION BY playerid ORDER BY yearid) AS seasons_played,
-		SUM(SUM(hr)) OVER(PARTITION BY playerid ORDER BY yearid RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) career_hr
+		ROW_NUMBER() OVER(PARTITION BY playerid 
+						  ORDER BY yearid) AS seasons_played,
+		SUM(SUM(hr)) OVER(PARTITION BY playerid 
+						  ORDER BY yearid
+						  RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS career_hr
 	FROM batting
 	WHERE playerid <> 'bondsba01'
 	GROUP BY playerid, yearid
@@ -121,8 +130,11 @@ WITH barry_hr AS (
 		playerid,
 		yearid,
 		SUM(hr) AS season_hr, 
-		ROW_NUMBER() OVER(PARTITION BY playerid ORDER BY yearid) AS seasons_played,
-		SUM(SUM(hr)) OVER(PARTITION BY playerid ORDER BY yearid RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) career_hr
+		ROW_NUMBER() OVER(PARTITION BY playerid 
+						  ORDER BY yearid) AS seasons_played,
+		SUM(SUM(hr)) OVER(PARTITION BY playerid 
+						  ORDER BY yearid 
+						  RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS career_hr
 	FROM batting
 	WHERE playerid = 'bondsba01'
 	GROUP BY playerid, yearid
@@ -132,8 +144,11 @@ all_hr AS (
 		playerid,
 		yearid,
 		SUM(hr) AS season_hr, 
-		ROW_NUMBER() OVER(PARTITION BY playerid ORDER BY yearid) AS seasons_played,
-		SUM(SUM(hr)) OVER(PARTITION BY playerid ORDER BY yearid RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) career_hr
+		ROW_NUMBER() OVER(PARTITION BY playerid 
+						  ORDER BY yearid) AS seasons_played,
+		SUM(SUM(hr)) OVER(PARTITION BY playerid
+						  ORDER BY yearid 
+						  RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS career_hr
 	FROM batting
 	WHERE playerid <> 'bondsba01'
 	GROUP BY playerid, yearid
@@ -167,11 +182,11 @@ WITH rolling_hr_avgs AS (
 		yearid,
 		SUM(hr) AS season_hr,
 		AVG(SUM(hr)) OVER(PARTITION BY playerid
-					 ORDER BY yearid
-					 RANGE BETWEEN 2 PRECEDING AND 2 FOLLOWING) AS rolling_hr_avg,
+					 	  ORDER BY yearid
+					 	  RANGE BETWEEN 2 PRECEDING AND 2 FOLLOWING) AS rolling_hr_avg,
 		SUM(hr) - AVG(SUM(hr)) OVER(PARTITION BY playerid
-					 ORDER BY yearid
-					 RANGE BETWEEN 2 PRECEDING AND 2 FOLLOWING) AS dif_from_avg
+					  				ORDER BY yearid
+					 				RANGE BETWEEN 2 PRECEDING AND 2 FOLLOWING) AS dif_from_avg
 	FROM batting
 	INNER JOIN people
 		USING (playerid)
@@ -342,15 +357,17 @@ WITH streaks AS (
 		CASE WHEN playoffs = 'Y' AND LAG(playoffs) OVER(ORDER BY teamid, yearid) = 'Y' THEN 0
 			 ELSE 1 END AS streaking
 	FROM teams,
-	LATERAL (SELECT CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END AS playoffs) AS playoffs
+	LATERAL (SELECT CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' 
+			 			 THEN 'Y' ELSE 'N' 
+			 			 END AS playoffs) AS playoffs
 	ORDER BY teamid, yearid
 	),
 streak_ids AS (
 	SELECT
 		*,
 		SUM(streaking) OVER(PARTITION BY teamid 
-						 ORDER BY yearid 
-						 RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS streakid
+						    ORDER BY yearid 
+						    RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS streakid
 	FROM streaks
 	)
 SELECT
@@ -382,7 +399,9 @@ WITH streaks AS (
 		CASE WHEN playoffs = 'Y' AND LAG(playoffs) OVER(ORDER BY teamid, yearid) = 'Y' THEN 0
 			 ELSE 1 END AS streaking
 	FROM teams,
-	LATERAL (SELECT CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' ELSE 'N' END AS playoffs) AS playoffs
+	LATERAL (SELECT CASE WHEN divwin = 'Y' OR wcwin = 'Y' OR lgwin = 'Y' THEN 'Y' 
+			 			 ELSE 'N' 
+			 			 END AS playoffs) AS playoffs
 	WHERE divwin IS NOT NULL
 		OR wcwin IS NOT NULL
 		OR lgwin IS NOT NULL
@@ -427,24 +446,24 @@ WITH manteams AS (
 		teams.yearid AS year_started,
 		ROUND(100.0*
 			  (SUM(teams.w) OVER(PARTITION BY teamid 
-										  ORDER BY yearid
-										  ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING))
+								 ORDER BY yearid
+								 ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING))
 			  /
 			  (SUM(teams.w+teams.l) OVER(PARTITION BY teamid 
-										  ORDER BY yearid
-										  ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING)),1) AS team_prev_3_winpct,
+										 ORDER BY yearid
+										 ROWS BETWEEN 3 PRECEDING AND 1 PRECEDING)),1) AS team_prev_3_winpct,
 		ROW_NUMBER() OVER(PARTITION BY teamid ORDER BY yearid) AS team_season,
 		playerid,
 		namefirst || ' ' || namelast AS manager,
 		ROW_NUMBER() OVER(PARTITION BY playerid, teamid ORDER BY yearid) AS manager_season,
 		ROUND(100.0*
 			  (SUM(teams.w) OVER(PARTITION BY teamid 
-										  ORDER BY yearid
-										  ROWS BETWEEN 1 FOLLOWING AND 3 FOLLOWING))
+								 ORDER BY yearid
+								 ROWS BETWEEN 1 FOLLOWING AND 3 FOLLOWING))
 			  /
 			  (SUM(teams.w+teams.l) OVER(PARTITION BY teamid 
-										  ORDER BY yearid
-										  ROWS BETWEEN 1 FOLLOWING AND 3 FOLLOWING)),1) AS team_yr_2_thru_4_winpct
+										 ORDER BY yearid
+										 ROWS BETWEEN 1 FOLLOWING AND 3 FOLLOWING)),1) AS team_yr_2_thru_4_winpct
 	FROM teams
 	INNER JOIN managers
 		USING (teamid, yearid)
